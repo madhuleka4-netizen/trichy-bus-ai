@@ -129,15 +129,6 @@ function Sidebar({ activePage, setActivePage }) {
   )
 }
 
-function PlaceholderPage({ title }) {
-  return (
-    <div style={{ padding: "40px", textAlign: "center", color: "#888" }}>
-      <h2>{title}</h2>
-      <p>This section is coming next - under active development.</p>
-    </div>
-  )
-}
-
 function BusesPage() {
   const [filter, setFilter] = useState("All")
   const filters = ["All", "Active", "Delayed", "Overcrowded", "Maintenance"]
@@ -268,6 +259,182 @@ function RoutesPage() {
           </MapContainer>
         </div>
       </div>
+    </div>
+  )
+}
+
+function AlertsPage() {
+  const [demandAlerts, setDemandAlerts] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const now = new Date()
+    const hour = Math.min(22, Math.max(6, now.getHours()))
+    const dayOfWeek = now.getDay()
+    const dayType = (dayOfWeek === 0 || dayOfWeek === 6) ? "weekend" : "weekday"
+
+    Promise.all(
+      Object.keys(routes).map(key =>
+        fetch(`http://127.0.0.1:5000/schedule?stops=${routes[key].stopIds.join(",")}&hour=${hour}&day_type=${dayType}`)
+          .then(res => res.json())
+          .then(data => data
+            .filter(s => s.predicted_demand >= ALERT_THRESHOLD)
+            .map(s => ({
+              type: "Overcrowding Risk",
+              severity: s.predicted_demand >= 85 ? "HIGH" : "MEDIUM",
+              route: routes[key].label,
+              detail: `${allStops[s.stop_id].name}: predicted demand ${s.predicted_demand}`,
+              action: `Increase frequency to every ${s.dynamic_frequency_min} min`
+            }))
+          )
+      )
+    ).then(results => {
+      setDemandAlerts(results.flat())
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  const fleetAlerts = busRoster
+    .filter(b => b.status === "Overcrowded" || b.status === "Delayed" || b.status === "Maintenance")
+    .map(b => ({
+      type: b.status === "Overcrowded" ? "Bus Overcrowded" : b.status === "Delayed" ? "Bus Delay" : "Bus Maintenance",
+      severity: b.status === "Overcrowded" ? "HIGH" : b.status === "Delayed" ? "MEDIUM" : "LOW",
+      route: routes[b.route].label,
+      detail: `Bus ${b.id} (driver ${b.driver}) - status: ${b.status}`,
+      action: b.status === "Overcrowded" ? "Dispatch additional bus on this route"
+        : b.status === "Delayed" ? "Monitor and notify waiting passengers"
+        : "Bus removed from active service"
+    }))
+
+  const allAlerts = [...demandAlerts, ...fleetAlerts]
+
+  const severityColor = {
+    HIGH: { bg: "#f8d7da", border: "#dc3545", badge: "#dc3545" },
+    MEDIUM: { bg: "#fff3cd", border: "#e0a800", badge: "#e0a800" },
+    LOW: { bg: "#e2e3e5", border: "#6c757d", badge: "#6c757d" },
+  }
+
+  return (
+    <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
+      <h1 style={{ fontSize: "26px", margin: "0 0 5px 0" }}>Alert Center</h1>
+      <p style={{ color: "#888", fontSize: "13px", margin: "0 0 15px 0" }}>
+        DEMO / SIMULATED DATA - alerts generated from the ML demand model and simulated fleet roster
+      </p>
+
+      {loading ? (
+        <p>Loading alerts...</p>
+      ) : allAlerts.length === 0 ? (
+        <div style={{ backgroundColor: "#e0ffe0", border: "2px solid #28a745", borderRadius: "8px", padding: "15px", textAlign: "center" }}>
+          No active alerts right now - all routes and buses within normal parameters.
+        </div>
+      ) : (
+        allAlerts.map((alert, i) => {
+          const colors = severityColor[alert.severity]
+          return (
+            <div key={i} style={{
+              backgroundColor: colors.bg, border: `2px solid ${colors.border}`,
+              borderRadius: "8px", padding: "14px", marginBottom: "12px"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <b>{alert.type}</b>
+                <span style={{
+                  padding: "3px 10px", borderRadius: "12px", fontSize: "12px",
+                  backgroundColor: colors.badge, color: "#fff"
+                }}>
+                  {alert.severity}
+                </span>
+              </div>
+              <div style={{ fontSize: "13px", color: "#555", marginTop: "6px" }}>Route: {alert.route}</div>
+              <div style={{ fontSize: "14px", marginTop: "4px" }}>{alert.detail}</div>
+              <div style={{ fontSize: "13px", marginTop: "6px" }}><b>Recommended action:</b> {alert.action}</div>
+            </div>
+          )
+        })
+      )}
+    </div>
+  )
+}
+
+function AnalyticsPage() {
+  const [selectedRoute, setSelectedRoute] = useState("route1")
+  const [hourlyData, setHourlyData] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    const stopIds = routes[selectedRoute].stopIds
+    const hours = Array.from({ length: 17 }, (_, i) => i + 6)
+
+    Promise.all(
+      hours.map(hour =>
+        fetch(`http://127.0.0.1:5000/schedule?stops=${stopIds.join(",")}&hour=${hour}&day_type=weekday`)
+          .then(res => res.json())
+          .then(data => {
+            const avg = data.reduce((sum, s) => sum + s.predicted_demand, 0) / data.length
+            return { hour, avgDemand: Math.round(avg * 10) / 10 }
+          })
+      )
+    ).then(results => {
+      setHourlyData(results)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [selectedRoute])
+
+  const maxDemand = Math.max(...hourlyData.map(d => d.avgDemand), 1)
+  const peakHour = hourlyData.reduce((max, d) => d.avgDemand > (max?.avgDemand ?? 0) ? d : max, null)
+
+  return (
+    <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
+      <h1 style={{ fontSize: "26px", margin: "0 0 5px 0" }}>Analytics</h1>
+      <p style={{ color: "#888", fontSize: "13px", margin: "0 0 15px 0" }}>
+        DEMO / SIMULATED DATA - based on the ML demand model for a typical weekday
+      </p>
+
+      <div style={{ marginBottom: "20px" }}>
+        {Object.keys(routes).map(key => (
+          <button key={key} onClick={() => setSelectedRoute(key)}
+            style={{
+              margin: "0 5px 0 0", padding: "8px 16px",
+              backgroundColor: selectedRoute === key ? "#333" : "#eee",
+              color: selectedRoute === key ? "#fff" : "#000",
+              border: "1px solid #999", borderRadius: "6px", cursor: "pointer"
+            }}>
+            {routes[key].label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p>Loading chart...</p>
+      ) : (
+        <>
+          {peakHour && (
+            <div style={{ marginBottom: "15px", backgroundColor: "#f0f0f0", padding: "10px", borderRadius: "8px" }}>
+              Peak predicted demand hour: <b>{peakHour.hour}:00</b> (avg. demand {peakHour.avgDemand})
+            </div>
+          )}
+
+          <div style={{
+            display: "flex", alignItems: "flex-end", gap: "6px", height: "260px",
+            borderLeft: "2px solid #333", borderBottom: "2px solid #333", padding: "10px 10px 0 10px"
+          }}>
+            {hourlyData.map(d => (
+              <div key={d.hour} style={{ flex: 1, textAlign: "center" }}>
+                <div style={{ fontSize: "11px", marginBottom: "3px" }}>{d.avgDemand}</div>
+                <div style={{
+                  height: `${(d.avgDemand / maxDemand) * 200}px`,
+                  backgroundColor: d.avgDemand >= ALERT_THRESHOLD ? "#dc3545" : d.avgDemand >= 40 ? "#e0a800" : "#28a745",
+                  borderRadius: "3px 3px 0 0"
+                }} />
+                <div style={{ fontSize: "11px", marginTop: "3px" }}>{d.hour}h</div>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: "12px", color: "#888", marginTop: "10px" }}>
+            Bar color indicates demand level: green (low), amber (moderate), red (high - alert threshold)
+          </p>
+        </>
+      )}
     </div>
   )
 }
@@ -476,8 +643,8 @@ function App() {
         {activePage === "dashboard" && <DashboardPage />}
         {activePage === "buses" && <BusesPage />}
         {activePage === "routes" && <RoutesPage />}
-        {activePage === "alerts" && <PlaceholderPage title="Alerts" />}
-        {activePage === "analytics" && <PlaceholderPage title="Analytics" />}
+        {activePage === "alerts" && <AlertsPage />}
+        {activePage === "analytics" && <AnalyticsPage />}
       </div>
     </div>
   )
