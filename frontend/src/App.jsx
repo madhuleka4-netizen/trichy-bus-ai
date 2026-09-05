@@ -34,21 +34,20 @@ const allStops = {
 
 const routes = {
   route1: {
-    label: "Central Bus Stand → NIT Trichy", stopIds: ["S1", "S2", "S3", "S4", "S5", "S6"], color: "blue",
-    fleet: ["B101", "B102", "B103", "B104"]
+    id: "R101", label: "Central Bus Stand to NIT Trichy", stopIds: ["S1", "S2", "S3", "S4", "S5", "S6"], color: "blue",
+    fleet: ["B101", "B102", "B103", "B104"], distanceKm: 31.55, estMinutes: 105.1, frequencyMin: 20
   },
   route2: {
-    label: "Central Bus Stand → Srirangam", stopIds: ["S1", "S7", "S8", "S9"], color: "red",
-    fleet: ["B201", "B202", "B203"]
+    id: "R102", label: "Central Bus Stand to Srirangam", stopIds: ["S1", "S7", "S8", "S9"], color: "red",
+    fleet: ["B201", "B202", "B203"], distanceKm: 11.19, estMinutes: 37.3, frequencyMin: 20
   }
 }
 
-// Demo fleet roster with simulated operational data (not live-synced with Dashboard breakdown demo)
 const busRoster = [
   { id: "B101", route: "route1", capacity: 50, occupancy: 42, status: "Active", driver: "R. Kumar" },
   { id: "B102", route: "route1", capacity: 50, occupancy: 48, status: "Overcrowded", driver: "S. Muthu" },
   { id: "B103", route: "route1", capacity: 50, occupancy: 20, status: "Delayed", driver: "V. Elango" },
-  { id: "B104", route: "route1", capacity: 50, occupancy: 0, status: "Maintenance", driver: "—" },
+  { id: "B104", route: "route1", capacity: 50, occupancy: 0, status: "Maintenance", driver: "-" },
   { id: "B201", route: "route2", capacity: 40, occupancy: 35, status: "Active", driver: "K. Anand" },
   { id: "B202", route: "route2", capacity: 40, occupancy: 12, status: "Active", driver: "P. Devi" },
   { id: "B203", route: "route2", capacity: 40, occupancy: 40, status: "Overcrowded", driver: "M. Suresh" },
@@ -98,18 +97,18 @@ function buildAnimationPath(stops) {
 }
 
 const NAV_ITEMS = [
-  { key: "dashboard", label: "📊 Dashboard" },
-  { key: "buses", label: "🚌 Buses" },
-  { key: "routes", label: "🛣️ Routes" },
-  { key: "alerts", label: "⚠️ Alerts" },
-  { key: "analytics", label: "📈 Analytics" },
+  { key: "dashboard", label: "Dashboard" },
+  { key: "buses", label: "Buses" },
+  { key: "routes", label: "Routes" },
+  { key: "alerts", label: "Alerts" },
+  { key: "analytics", label: "Analytics" },
 ]
 
 function Sidebar({ activePage, setActivePage }) {
   return (
     <div style={{ width: "200px", minHeight: "100vh", backgroundColor: "#1f2937", color: "#fff", padding: "20px 0", flexShrink: 0 }}>
       <div style={{ padding: "0 20px 20px 20px", fontWeight: "bold", fontSize: "16px", borderBottom: "1px solid #374151" }}>
-        🚏 Trichy Transit AI
+        Trichy Transit AI
       </div>
       <nav style={{ marginTop: "10px" }}>
         {NAV_ITEMS.map(item => (
@@ -124,7 +123,7 @@ function Sidebar({ activePage, setActivePage }) {
         ))}
       </nav>
       <div style={{ padding: "20px", fontSize: "11px", color: "#9ca3af", marginTop: "20px", borderTop: "1px solid #374151" }}>
-        ⚠ DEMO / SIMULATED DATA<br />Not official TNSTC data
+        DEMO / SIMULATED DATA<br />Not official TNSTC data
       </div>
     </div>
   )
@@ -134,24 +133,22 @@ function PlaceholderPage({ title }) {
   return (
     <div style={{ padding: "40px", textAlign: "center", color: "#888" }}>
       <h2>{title}</h2>
-      <p>This section is coming next — under active development.</p>
+      <p>This section is coming next - under active development.</p>
     </div>
   )
 }
 
 function BusesPage() {
   const [filter, setFilter] = useState("All")
-
   const filters = ["All", "Active", "Delayed", "Overcrowded", "Maintenance"]
   const filteredBuses = filter === "All" ? busRoster : busRoster.filter(b => b.status === filter)
 
   return (
     <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
-      <h1 style={{ fontSize: "26px", margin: "0 0 5px 0" }}>🚌 Bus Fleet Management</h1>
+      <h1 style={{ fontSize: "26px", margin: "0 0 5px 0" }}>Bus Fleet Management</h1>
       <p style={{ color: "#888", fontSize: "13px", margin: "0 0 15px 0" }}>
-        ⚠ DEMO / SIMULATED DATA — fleet roster is illustrative, not a live TNSTC feed
+        DEMO / SIMULATED DATA - fleet roster is illustrative, not a live TNSTC feed
       </p>
-
       <div style={{ marginBottom: "15px" }}>
         {filters.map(f => (
           <button key={f} onClick={() => setFilter(f)}
@@ -165,7 +162,6 @@ function BusesPage() {
           </button>
         ))}
       </div>
-
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead style={{ backgroundColor: "#1f2937", color: "#fff" }}>
           <tr>
@@ -190,10 +186,7 @@ function BusesPage() {
                 <td style={{ textAlign: "center" }}>{bus.occupancy}</td>
                 <td style={{ textAlign: "center" }}>{occPercent}%</td>
                 <td style={{ textAlign: "center" }}>
-                  <span style={{
-                    padding: "3px 10px", borderRadius: "12px", fontSize: "12px",
-                    backgroundColor: colors.border, color: "#fff"
-                  }}>
+                  <span style={{ padding: "3px 10px", borderRadius: "12px", fontSize: "12px", backgroundColor: colors.border, color: "#fff" }}>
                     {bus.status}
                   </span>
                 </td>
@@ -203,10 +196,78 @@ function BusesPage() {
           })}
         </tbody>
       </table>
+    </div>
+  )
+}
 
-      {filteredBuses.length === 0 && (
-        <p style={{ textAlign: "center", color: "#888", marginTop: "20px" }}>No buses match this filter.</p>
-      )}
+function RoutesPage() {
+  const [selectedRoute, setSelectedRoute] = useState("route1")
+  const [demandByRoute, setDemandByRoute] = useState({})
+
+  useEffect(() => {
+    Object.keys(routes).forEach(key => {
+      const stopIds = routes[key].stopIds
+      fetch(`http://127.0.0.1:5000/schedule?stops=${stopIds.join(",")}&hour=8&day_type=weekday`)
+        .then(res => res.json())
+        .then(data => {
+          const avg = data.reduce((sum, s) => sum + s.predicted_demand, 0) / data.length
+          setDemandByRoute(prev => ({ ...prev, [key]: Math.round(avg * 10) / 10 }))
+        })
+        .catch(() => {})
+    })
+  }, [])
+
+  const selected = routes[selectedRoute]
+  const selectedStops = selected.stopIds.map(id => ({ id, ...allStops[id] }))
+  const selectedLine = selectedStops.map(s => [s.lat, s.lon])
+
+  return (
+    <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
+      <h1 style={{ fontSize: "26px", margin: "0 0 5px 0" }}>Route Management</h1>
+      <p style={{ color: "#888", fontSize: "13px", margin: "0 0 15px 0" }}>
+        DEMO / SIMULATED DATA - distances and frequencies are illustrative estimates for this prototype
+      </p>
+
+      <div style={{ display: "flex", gap: "20px" }}>
+        <div style={{ flex: 1 }}>
+          {Object.keys(routes).map(key => {
+            const r = routes[key]
+            const isSelected = selectedRoute === key
+            const demand = demandByRoute[key]
+            return (
+              <div key={key} onClick={() => setSelectedRoute(key)}
+                style={{
+                  border: isSelected ? "2px solid #333" : "1px solid #ddd",
+                  borderRadius: "8px", padding: "15px", marginBottom: "12px", cursor: "pointer",
+                  backgroundColor: isSelected ? "#f5f5f5" : "#fff"
+                }}>
+                <div style={{ fontWeight: "bold", fontSize: "16px" }}>{r.id} - {r.label}</div>
+                <div style={{ fontSize: "13px", color: "#555", marginTop: "6px" }}>
+                  Stops: {r.stopIds.length} | Distance: {r.distanceKm} km | Est. journey: {r.estMinutes} min
+                </div>
+                <div style={{ fontSize: "13px", color: "#555" }}>
+                  Scheduled frequency: every {r.frequencyMin} min | Assigned buses: {r.fleet.join(", ")}
+                </div>
+                <div style={{ fontSize: "13px", marginTop: "4px" }}>
+                  Current avg. demand (8am weekday): <b>{demand ?? "loading..."}</b>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div style={{ flex: 1 }}>
+          <MapContainer center={[10.80, 78.74]} zoom={11} style={{ height: "400px", width: "100%", borderRadius: "8px" }}>
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' />
+            <Polyline positions={selectedLine} color={selected.color} />
+            {selectedStops.map(stop => (
+              <Marker key={stop.id} position={[stop.lat, stop.lon]}>
+                <Popup>{stop.name}</Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        </div>
+      </div>
     </div>
   )
 }
@@ -295,7 +356,7 @@ function DashboardPage() {
     <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
       <h1 style={{ fontSize: "26px", margin: "0 0 5px 0" }}>Trichy Bus Demand Monitor</h1>
       <p style={{ color: "#888", fontSize: "13px", margin: "0 0 15px 0" }}>
-        ⚠ DEMO / SIMULATED DATA — routes, demand, fleet, and bus movement are for demonstration only
+        DEMO / SIMULATED DATA - routes, demand, fleet, and bus movement are for demonstration only
       </p>
 
       <div style={{ marginBottom: "10px" }}>
@@ -311,7 +372,7 @@ function DashboardPage() {
           </button>
         ))}
         <span style={{ marginLeft: "20px" }}>
-          Date &amp; Time:
+          Date and Time:
           <input type="datetime-local" value={dateTimeValue} onChange={e => setDateTimeValue(e.target.value)}
             style={{ marginLeft: "5px", padding: "5px" }} />
         </span>
@@ -319,7 +380,7 @@ function DashboardPage() {
 
       <div style={{ marginBottom: "15px", color: "#555", fontSize: "14px" }}>
         Detected: <b>{dayType === "weekend" ? "Weekend" : "Weekday"}</b>, Hour <b>{hour}:00</b>
-        {" "}— Event: <b>{events[activeEvent].label}</b>
+        {" "}- Event: <b>{events[activeEvent].label}</b>
       </div>
 
       <div style={{ marginBottom: "15px", backgroundColor: "#f0f0f0", padding: "10px", borderRadius: "8px" }}>
@@ -335,7 +396,7 @@ function DashboardPage() {
           padding: "8px 16px", backgroundColor: "#dc3545", color: "#fff",
           border: "none", borderRadius: "6px", cursor: "pointer", marginRight: "8px"
         }}>
-          🚨 Simulate Bus Breakdown
+          Simulate Bus Breakdown
         </button>
         {brokenBus && (
           <button onClick={resetBreakdown} style={{
@@ -350,24 +411,24 @@ function DashboardPage() {
             marginTop: "10px", backgroundColor: "#f8d7da", border: "2px solid #dc3545",
             borderRadius: "8px", padding: "10px", display: "inline-block", textAlign: "left"
           }}>
-            <b>🔧 Bus {brokenBus} — BREAKDOWN on {routes[activeRoute].label}</b><br />
+            <b>Bus {brokenBus} - BREAKDOWN on {routes[activeRoute].label}</b><br />
             Status: removed from service<br />
             Available buses on route: {fleet.filter(b => b !== brokenBus).join(", ")}<br />
             <b>Recommended replacement: {replacementBus}</b> (closest available bus, sufficient capacity)<br />
-            Schedule recalculated — replacement bus dispatched to cover gap.
+            Schedule recalculated - replacement bus dispatched to cover gap.
           </div>
         )}
       </div>
 
       {alerts.length > 0 && (
         <div style={{ backgroundColor: "#fff3cd", border: "2px solid #e0a800", borderRadius: "8px", padding: "12px", marginBottom: "15px" }}>
-          <b>⚠ High Demand Alert — Dispatch Additional Buses:</b>
+          <b>High Demand Alert - Dispatch Additional Buses:</b>
           <ul style={{ margin: "8px 0 0 0" }}>
             {alerts.map(a => (
               <li key={a.stop_id}>
-                <b>{allStops[a.stop_id].name}</b> — predicted demand {a.adjusted_demand}
+                <b>{allStops[a.stop_id].name}</b> - predicted demand {a.adjusted_demand}
                 {a.boost > 0 ? ` (includes +${a.boost} from ${events[activeEvent].label})` : ""}
-                → recommend buses every {a.dynamic_frequency_min} min
+                {" "}- recommend buses every {a.dynamic_frequency_min} min
               </li>
             ))}
           </ul>
@@ -375,7 +436,7 @@ function DashboardPage() {
       )}
       {alerts.length === 0 && !loading && (
         <div style={{ backgroundColor: "#e0ffe0", border: "2px solid #28a745", borderRadius: "8px", padding: "12px", marginBottom: "15px" }}>
-          ✓ All stops within normal demand range — no extra buses needed right now
+          All stops within normal demand range - no extra buses needed right now
         </div>
       )}
 
@@ -390,14 +451,14 @@ function DashboardPage() {
               <Popup>
                 <b>{stop.name}</b><br />
                 Predicted demand: {demand ?? "loading..."}<br />
-                {isAlert ? "⚠ High demand — extra buses recommended" : "Normal demand"}
+                {isAlert ? "High demand - extra buses recommended" : "Normal demand"}
               </Popup>
             </Marker>
           )
         })}
         {busPosition && (
           <Marker position={busPosition} icon={busIcon}>
-            <Popup>🚌 Live simulated bus on {routes[activeRoute].label}</Popup>
+            <Popup>Live simulated bus on {routes[activeRoute].label}</Popup>
           </Marker>
         )}
       </MapContainer>
@@ -414,9 +475,9 @@ function App() {
       <div style={{ flex: 1, overflowY: "auto" }}>
         {activePage === "dashboard" && <DashboardPage />}
         {activePage === "buses" && <BusesPage />}
-        {activePage === "routes" && <PlaceholderPage title="🛣️ Routes" />}
-        {activePage === "alerts" && <PlaceholderPage title="⚠️ Alerts" />}
-        {activePage === "analytics" && <PlaceholderPage title="📈 Analytics" />}
+        {activePage === "routes" && <RoutesPage />}
+        {activePage === "alerts" && <PlaceholderPage title="Alerts" />}
+        {activePage === "analytics" && <PlaceholderPage title="Analytics" />}
       </div>
     </div>
   )
