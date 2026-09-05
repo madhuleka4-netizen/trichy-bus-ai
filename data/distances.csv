@@ -1,0 +1,6 @@
+from_stop,to_stop,distance_km,travel_time_peak_min,travel_time_offpeak_min
+S1,S2,5.46,18.2,11.7
+S2,S3,2.05,6.8,4.4
+S3,S4,3.23,10.8,6.9
+S4,S5,15.61,52.0,33.5
+S5,S6,5.2,17.3,11.1
