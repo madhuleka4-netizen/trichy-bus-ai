@@ -35,15 +35,17 @@ const allStops = {
 const routes = {
   route1: {
     id: "R101", label: "Central Bus Stand to NIT Trichy", stopIds: ["S1", "S2", "S3", "S4", "S5", "S6"], color: "blue",
-    fleet: ["B101", "B102", "B103", "B104"], distanceKm: 31.55, estMinutes: 105.1, frequencyMin: 20
+    fleet: ["B101", "B102", "B103", "B104"], distanceKm: 31.55, estMinutes: 105.1, frequencyMin: 20,
+    stopOffsets: { S1: 0, S2: 18, S3: 25, S4: 36, S5: 88, S6: 105 }
   },
   route2: {
     id: "R102", label: "Central Bus Stand to Srirangam", stopIds: ["S1", "S7", "S8", "S9"], color: "red",
-    fleet: ["B201", "B202", "B203"], distanceKm: 11.19, estMinutes: 37.3, frequencyMin: 20
+    fleet: ["B201", "B202", "B203"], distanceKm: 11.19, estMinutes: 37.3, frequencyMin: 20,
+    stopOffsets: { S1: 0, S7: 3, S8: 15, S9: 37 }
   }
 }
 
-const busRoster = [
+const initialBusRoster = [
   { id: "B101", route: "route1", capacity: 50, occupancy: 42, status: "Active", driver: "R. Kumar" },
   { id: "B102", route: "route1", capacity: 50, occupancy: 48, status: "Overcrowded", driver: "S. Muthu" },
   { id: "B103", route: "route1", capacity: 50, occupancy: 20, status: "Delayed", driver: "V. Elango" },
@@ -52,6 +54,41 @@ const busRoster = [
   { id: "B202", route: "route2", capacity: 40, occupancy: 12, status: "Active", driver: "P. Devi" },
   { id: "B203", route: "route2", capacity: 40, occupancy: 40, status: "Overcrowded", driver: "M. Suresh" },
 ]
+
+const FLEET_TICK_MS = 8000
+
+function statusFromOccupancyPercent(pct, wasDelayed) {
+  if (pct >= 95) return "Overcrowded"
+  if (wasDelayed) return "Delayed"
+  return "Active"
+}
+
+function tickBusRoster(prevRoster) {
+  return prevRoster.map(bus => {
+    if (bus.status === "Maintenance") return bus // maintenance buses stay parked
+
+    let newOccupancy = bus.occupancy + Math.round((Math.random() - 0.5) * 10)
+    newOccupancy = Math.max(0, Math.min(bus.capacity, newOccupancy))
+
+    const occPct = (newOccupancy / bus.capacity) * 100
+    // Small independent chance to become delayed, otherwise derive status from occupancy
+    const becomesDelayed = bus.status !== "Overcrowded" && Math.random() < 0.08
+    const newStatus = statusFromOccupancyPercent(occPct, becomesDelayed)
+
+    return { ...bus, occupancy: newOccupancy, status: newStatus }
+  })
+}
+
+function useLiveBusRoster() {
+  const [roster, setRoster] = useState(initialBusRoster)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRoster(prev => tickBusRoster(prev))
+    }, FLEET_TICK_MS)
+    return () => clearInterval(interval)
+  }, [])
+  return roster
+}
 
 const statusColors = {
   Active: { bg: "#e0ffe0", border: "#28a745" },
@@ -76,6 +113,8 @@ const eventDateMap = {
 const ALERT_THRESHOLD = 70
 const STEPS_PER_SEGMENT = 40
 const TICK_MS = 120
+const LIVE_CLOCK_REFRESH_MS = 30000
+const ALERTS_AUTO_REFRESH_MS = 60000
 
 function toLocalDateTimeInputValue(date) {
   const pad = n => String(n).padStart(2, "0")
@@ -129,7 +168,7 @@ function Sidebar({ activePage, setActivePage }) {
   )
 }
 
-function BusesPage() {
+function BusesPage({ busRoster }) {
   const [filter, setFilter] = useState("All")
   const filters = ["All", "Active", "Delayed", "Overcrowded", "Maintenance"]
   const filteredBuses = filter === "All" ? busRoster : busRoster.filter(b => b.status === filter)
@@ -138,7 +177,7 @@ function BusesPage() {
     <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
       <h1 style={{ fontSize: "26px", margin: "0 0 5px 0" }}>Bus Fleet Management</h1>
       <p style={{ color: "#888", fontSize: "13px", margin: "0 0 15px 0" }}>
-        DEMO / SIMULATED DATA - fleet roster is illustrative, not a live TNSTC feed
+        DEMO / SIMULATED DATA - fleet roster is illustrative and updates automatically to simulate live status
       </p>
       <div style={{ marginBottom: "15px" }}>
         {filters.map(f => (
@@ -263,11 +302,14 @@ function RoutesPage() {
   )
 }
 
-function AlertsPage() {
+function AlertsPage({ busRoster }) {
   const [demandAlerts, setDemandAlerts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [lastChecked, setLastChecked] = useState(new Date())
+  const [autoRefresh, setAutoRefresh] = useState(true)
 
-  useEffect(() => {
+  const checkAlerts = () => {
+    setLoading(true)
     const now = new Date()
     const hour = Math.min(22, Math.max(6, now.getHours()))
     const dayOfWeek = now.getDay()
@@ -291,8 +333,16 @@ function AlertsPage() {
     ).then(results => {
       setDemandAlerts(results.flat())
       setLoading(false)
+      setLastChecked(new Date())
     }).catch(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => {
+    checkAlerts()
+    if (!autoRefresh) return
+    const interval = setInterval(checkAlerts, ALERTS_AUTO_REFRESH_MS)
+    return () => clearInterval(interval)
+  }, [autoRefresh])
 
   const fleetAlerts = busRoster
     .filter(b => b.status === "Overcrowded" || b.status === "Delayed" || b.status === "Maintenance")
@@ -320,6 +370,19 @@ function AlertsPage() {
       <p style={{ color: "#888", fontSize: "13px", margin: "0 0 15px 0" }}>
         DEMO / SIMULATED DATA - alerts generated from the ML demand model and simulated fleet roster
       </p>
+
+      <div style={{ marginBottom: "15px", display: "flex", alignItems: "center", gap: "15px" }}>
+        <label style={{ fontSize: "13px", cursor: "pointer" }}>
+          <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} style={{ marginRight: "6px" }} />
+          Auto-refresh every 60s
+        </label>
+        <button onClick={checkAlerts} style={{ padding: "5px 12px", borderRadius: "6px", border: "1px solid #999", cursor: "pointer" }}>
+          Refresh now
+        </button>
+        <span style={{ fontSize: "12px", color: "#888" }}>
+          Last checked: {lastChecked.toLocaleTimeString()}
+        </span>
+      </div>
 
       {loading ? (
         <p>Loading alerts...</p>
@@ -439,9 +502,10 @@ function AnalyticsPage() {
   )
 }
 
-function DashboardPage() {
+function DashboardPage({ busRoster }) {
   const [activeRoute, setActiveRoute] = useState("route1")
   const [dateTimeValue, setDateTimeValue] = useState(toLocalDateTimeInputValue(new Date()))
+  const [liveMode, setLiveMode] = useState(false)
   const [whatIfPercent, setWhatIfPercent] = useState(0)
   const [schedule, setSchedule] = useState([])
   const [loading, setLoading] = useState(false)
@@ -463,6 +527,14 @@ function DashboardPage() {
   const fleet = routes[activeRoute].fleet
 
   const animationPath = useMemo(() => buildAnimationPath(currentStops), [activeRoute])
+
+  useEffect(() => {
+    if (!liveMode) return
+    const interval = setInterval(() => {
+      setDateTimeValue(toLocalDateTimeInputValue(new Date()))
+    }, LIVE_CLOCK_REFRESH_MS)
+    return () => clearInterval(interval)
+  }, [liveMode])
 
   useEffect(() => {
     setBusPathIndex(0)
@@ -518,6 +590,7 @@ function DashboardPage() {
   }
 
   const busPosition = animationPath[busPathIndex] || animationPath[0]
+  const routeBuses = busRoster.filter(b => b.route === activeRoute)
 
   return (
     <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
@@ -540,14 +613,56 @@ function DashboardPage() {
         ))}
         <span style={{ marginLeft: "20px" }}>
           Date and Time:
-          <input type="datetime-local" value={dateTimeValue} onChange={e => setDateTimeValue(e.target.value)}
+          <input type="datetime-local" value={dateTimeValue}
+            onChange={e => { setDateTimeValue(e.target.value); setLiveMode(false) }}
+            disabled={liveMode}
             style={{ marginLeft: "5px", padding: "5px" }} />
         </span>
+        <label style={{ marginLeft: "15px", fontSize: "13px", cursor: "pointer" }}>
+          <input type="checkbox" checked={liveMode} onChange={e => setLiveMode(e.target.checked)} style={{ marginRight: "5px" }} />
+          Live mode (auto-advance to current time)
+        </label>
       </div>
 
       <div style={{ marginBottom: "15px", color: "#555", fontSize: "14px" }}>
         Detected: <b>{dayType === "weekend" ? "Weekend" : "Weekday"}</b>, Hour <b>{hour}:00</b>
         {" "}- Event: <b>{events[activeEvent].label}</b>
+        {liveMode && <span style={{ marginLeft: "10px", color: "#28a745" }}>(Live - updating automatically)</span>}
+      </div>
+
+      <div style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
+        {[
+          { label: "Total Buses (Fleet)", value: busRoster.length },
+          { label: "Active Buses", value: busRoster.filter(b => b.status === "Active").length },
+          { label: "Active Alerts (this route)", value: alerts.length },
+          { label: "Avg. Demand (this route)", value: schedule.length ? Math.round(schedule.reduce((s, x) => s + x.adjusted_demand, 0) / schedule.length) : "-" },
+        ].map((kpi, i) => (
+          <div key={i} style={{
+            flex: 1, backgroundColor: "#fff", border: "1px solid #ddd", borderRadius: "8px",
+            padding: "14px", textAlign: "center", boxShadow: "0 1px 3px rgba(0,0,0,0.08)"
+          }}>
+            <div style={{ fontSize: "24px", fontWeight: "bold" }}>{kpi.value}</div>
+            <div style={{ fontSize: "12px", color: "#888", marginTop: "4px" }}>{kpi.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginBottom: "15px" }}>
+        <h3 style={{ fontSize: "15px", margin: "0 0 6px 0" }}>Live Fleet Status - {routes[activeRoute].label}</h3>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          {routeBuses.map(bus => {
+            const colors = statusColors[bus.status] || { bg: "#fff", border: "#ccc" }
+            const occPct = Math.round((bus.occupancy / bus.capacity) * 100)
+            return (
+              <div key={bus.id} style={{
+                backgroundColor: colors.bg, border: `1px solid ${colors.border}`, borderRadius: "6px",
+                padding: "8px 12px", fontSize: "12px"
+              }}>
+                <b>{bus.id}</b> - {bus.status} ({occPct}%)
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       <div style={{ marginBottom: "15px", backgroundColor: "#f0f0f0", padding: "10px", borderRadius: "8px" }}>
@@ -607,6 +722,50 @@ function DashboardPage() {
         </div>
       )}
 
+      {schedule.length > 0 && (() => {
+        const recommendedFrequency = Math.min(...schedule.map(s => s.dynamic_frequency_min))
+        const departures = Array.from({ length: 5 }, (_, i) => {
+          const dep = new Date(parsedDate.getTime() + i * recommendedFrequency * 60000)
+          return dep
+        })
+        return (
+          <div style={{ marginBottom: "20px" }}>
+            <h3 style={{ fontSize: "16px", margin: "0 0 8px 0" }}>
+              Upcoming Departures (recommended frequency: every {recommendedFrequency} min)
+            </h3>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+              <thead style={{ backgroundColor: "#1f2937", color: "#fff" }}>
+                <tr>
+                  <th style={{ padding: "8px", textAlign: "left" }}>Departure</th>
+                  {currentStops.map(stop => (
+                    <th key={stop.id}>{stop.name}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {departures.map((dep, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #ddd", backgroundColor: i === 0 ? "#e7f1ff" : "#fff" }}>
+                    <td style={{ padding: "8px" }}>
+                      <b>{dep.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</b>
+                      {i === 0 ? " (next)" : ""}
+                    </td>
+                    {currentStops.map(stop => {
+                      const offset = routes[activeRoute].stopOffsets[stop.id] || 0
+                      const arrival = new Date(dep.getTime() + offset * 60000)
+                      return (
+                        <td key={stop.id} style={{ textAlign: "center" }}>
+                          {arrival.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      })()}
+
       <MapContainer center={[10.80, 78.74]} zoom={11} style={{ height: "50vh", width: "100%" }}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' />
         <Polyline positions={routeLine} color={routes[activeRoute].color} />
@@ -635,15 +794,16 @@ function DashboardPage() {
 
 function App() {
   const [activePage, setActivePage] = useState("dashboard")
+  const busRoster = useLiveBusRoster()
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <Sidebar activePage={activePage} setActivePage={setActivePage} />
       <div style={{ flex: 1, overflowY: "auto" }}>
-        {activePage === "dashboard" && <DashboardPage />}
-        {activePage === "buses" && <BusesPage />}
+        {activePage === "dashboard" && <DashboardPage busRoster={busRoster} />}
+        {activePage === "buses" && <BusesPage busRoster={busRoster} />}
         {activePage === "routes" && <RoutesPage />}
-        {activePage === "alerts" && <AlertsPage />}
+        {activePage === "alerts" && <AlertsPage busRoster={busRoster} />}
         {activePage === "analytics" && <AnalyticsPage />}
       </div>
     </div>
